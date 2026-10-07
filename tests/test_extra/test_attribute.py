@@ -1,5 +1,6 @@
 """Test attribute selectors."""
 from .. import util
+import soupsieve as sv
 
 
 class TestAttribute(util.TestCase):
@@ -50,3 +51,71 @@ class TestAttribute(util.TestCase):
             ["div", "0", "1", "2", "3", "pre", "4", "6"],
             flags=util.HTML5
         )
+
+    def test_bad_attribute_unclused(self):
+        """Test bad attribute fails for syntax error, not timeout error."""
+
+        import platform
+
+        if platform.system() == 'Windows':
+            with self.assertRaises(sv.SelectorSyntaxError):
+                sv.compile('[a="' + ('x' * 300))
+        else:
+            import signal
+
+            def timeout_handler(signum, frame):
+                raise TimeoutError
+
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(3)
+
+            passed = False
+            try:
+                with self.assertRaises(sv.SelectorSyntaxError):
+                    sv.compile('[a="' + ('x' * 300))
+                passed = True
+            except TimeoutError:
+                pass
+            finally:
+                signal.alarm(0)
+            self.assertTrue(passed)
+
+    def test_bad_value_unclosed_quotes(self):
+        """Test unclosed quoted values fail for syntax error, not timeout error."""
+
+        import platform
+
+        patterns = (
+            "[a='" + ('x' * 300),
+            '[a!="' + ('x' * 300),
+            ':-soup-contains("' + ('x' * 300),
+            ":-soup-contains('" + ('x' * 300),
+            ':lang("' + ('x' * 300),
+            ":lang('" + ('x' * 300)
+        )
+
+        if platform.system() == 'Windows':
+            for pattern in patterns:
+                with self.assertRaises(sv.SelectorSyntaxError):
+                    sv.compile(pattern)
+        else:
+            import signal
+
+            def timeout_handler(signum, frame):
+                raise TimeoutError
+
+            signal.signal(signal.SIGALRM, timeout_handler)
+
+            for pattern in patterns:
+                signal.alarm(3)
+
+                passed = False
+                try:
+                    with self.assertRaises(sv.SelectorSyntaxError):
+                        sv.compile(pattern)
+                    passed = True
+                except TimeoutError:
+                    pass
+                finally:
+                    signal.alarm(0)
+                self.assertTrue(passed, pattern[:20])
